@@ -26,11 +26,22 @@ options = gesture_recognizer_options(
     num_hands=2
 )
 
-gestures = ["Thumb_Up", "Thumb_Down", "Victory", "Open_Palm", "Closed_Fist", "Pointing_Up"]
+def get_custom_gesture(hand):
+    index_up = hand[8].y < hand[6].y
+    middle_up = hand[12].y < hand[10].y
+    ring_up = hand[16].y < hand[14].y
+    pinky_up = hand[20].y < hand[18].y
 
-def spell_identifier(left_gesture, right_gesture):
-    if left_gesture and right_gesture == "Open_Palm":
-        print("Shield")
+    if not index_up and not middle_up and not ring_up and not pinky_up:
+        return "rock"
+
+    if index_up and middle_up and ring_up and pinky_up:
+        return "paper"
+
+    if index_up and middle_up and not ring_up and not pinky_up:
+        return "scissors"
+
+    return None
 
 with gesture_recognizer.create_from_options(options) as recognizer:
     capture = cv2.VideoCapture(0)
@@ -45,29 +56,26 @@ with gesture_recognizer.create_from_options(options) as recognizer:
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         timestamp = int(cv2.getTickCount() / cv2.getTickFrequency() * 1000)
 
-        result = recognizer.recognize_for_video(
-            mp_image,
-            timestamp
-        )
+        result = recognizer.recognize_for_video(mp_image, timestamp)
 
-        if result.gestures:
-            temp_lookup = {}
-            for hand_index, hand_gestures in enumerate(result.gestures):
-                gesture = hand_gestures[0].category_name
-                hand = result.handedness[hand_index][0].category_name.lower()
-                if gesture in gestures:
-                    temp_lookup[hand] = gesture
+        if result.hand_landmarks:
+            frame_height, frame_width, _ = frame.shape
 
-            spell_identifier(
-                left_gesture=temp_lookup.get("left"),
-                right_gesture=temp_lookup.get("right")
-            )
+            for i, hand in enumerate(result.hand_landmarks):
+                gesture = get_custom_gesture(hand)
 
-        cv2.imshow("Spellweaver", frame)
+                for landmark in hand:
+                    x = int(landmark.x * frame_width)
+                    y = int(landmark.y * frame_height)
+                    cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
+
+                if gesture:
+                    print(f"hand {i + 1}: {gesture}")
+
+        cv2.imshow("gesture recognition", frame)
 
         if cv2.waitKey(1) == ord("q"):
             break
 
 capture.release()
 cv2.destroyAllWindows()
-
